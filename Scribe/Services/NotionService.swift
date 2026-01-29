@@ -8,37 +8,47 @@ actor NotionService {
     private let notionVersion = "2022-06-28"
     private let baseURL = "https://api.notion.com/v1"
 
-    private var settings: NotionSettings { NotionSettings.shared }
-
     // Rate limiting: ~3 requests/second, we use 500ms between requests
     private var lastRequestTime: Date?
     private let minRequestInterval: TimeInterval = 0.5
 
     private init() {}
 
+    // MARK: - Settings Access (MainActor)
+
+    @MainActor
+    private static func getSettings() -> (token: String, databaseId: String, isConfigured: Bool) {
+        let settings = NotionSettings.shared
+        return (settings.integrationToken, settings.databaseId, settings.isConfigured)
+    }
+
     // MARK: - Public API
 
     /// Test the connection to Notion API.
     func testConnection() async throws {
+        let settings = await Self.getSettings()
+
         guard settings.isConfigured else {
             throw NotionError.notConfigured
         }
 
         // Try to retrieve the database to verify access
         let url = URL(string: "\(baseURL)/databases/\(settings.databaseId)")!
-        let _ = try await makeRequest(url: url, method: "GET")
+        let _ = try await makeRequest(url: url, method: "GET", token: settings.token)
     }
 
     /// Create a new page in the configured database with meeting notes.
     func createPage(for memo: Memo) async throws -> String {
+        let settings = await Self.getSettings()
+
         guard settings.isConfigured else {
             throw NotionError.notConfigured
         }
 
         let url = URL(string: "\(baseURL)/pages")!
 
-        let body = buildCreatePageBody(for: memo)
-        let response = try await makeRequest(url: url, method: "POST", body: body)
+        let body = buildCreatePageBody(for: memo, databaseId: settings.databaseId)
+        let response = try await makeRequest(url: url, method: "POST", body: body, token: settings.token)
 
         guard let pageId = response["id"] as? String else {
             throw NotionError.invalidResponse
@@ -49,6 +59,8 @@ actor NotionService {
 
     /// Append blocks to an existing page.
     func appendBlocks(to pageId: String, blocks: [[String: Any]]) async throws {
+        let settings = await Self.getSettings()
+
         let url = URL(string: "\(baseURL)/blocks/\(pageId)/children")!
 
         // Notion limits to 100 blocks per request
@@ -56,7 +68,7 @@ actor NotionService {
 
         for chunk in chunkedBlocks {
             let body: [String: Any] = ["children": chunk]
-            let _ = try await makeRequest(url: url, method: "PATCH", body: body)
+            let _ = try await makeRequest(url: url, method: "PATCH", body: body, token: settings.token)
         }
     }
 
@@ -78,7 +90,7 @@ actor NotionService {
 
     // MARK: - Request Building
 
-    private func buildCreatePageBody(for memo: Memo) -> [String: Any] {
+    private func buildCreatePageBody(for memo: Memo, databaseId: String) -> [String: Any] {
         var properties: [String: Any] = [
             "Name": [
                 "title": [
@@ -97,7 +109,7 @@ actor NotionService {
         let children = buildContentBlocks(for: memo)
 
         return [
-            "parent": ["database_id": settings.databaseId],
+            "parent": ["database_id": databaseId],
             "icon": ["type": "emoji", "emoji": "🎙️"],
             "properties": properties,
             "children": children
@@ -148,6 +160,8 @@ actor NotionService {
     }
 
     private func appendUpdateBlocks(to pageId: String, memo: Memo) async throws {
+        let settings = await Self.getSettings()
+
         var blocks: [[String: Any]] = []
 
         blocks.append(divider())
@@ -159,7 +173,15 @@ actor NotionService {
 
         blocks.append(contentsOf: buildContentBlocks(for: memo))
 
-        try await appendBlocks(to: pageId, blocks: blocks)
+        let url = URL(string: "\(baseURL)/blocks/\(pageId)/children")!
+
+        // Notion limits to 100 blocks per request
+        let chunkedBlocks = blocks.chunked(into: 100)
+
+        for chunk in chunkedBlocks {
+            let body: [String: Any] = ["children": chunk]
+            let _ = try await makeRequest(url: url, method: "PATCH", body: body, token: settings.token)
+        }
 
         await MainActor.run {
             memo.syncState = .synced
@@ -267,13 +289,13 @@ actor NotionService {
 
     // MARK: - Network
 
-    private func makeRequest(url: URL, method: String, body: [String: Any]? = nil) async throws -> [String: Any] {
+    private func makeRequest(url: URL, method: String, body: [String: Any]? = nil, token: String) async throws -> [String: Any] {
         // Rate limiting
         await throttle()
 
         var request = URLRequest(url: url)
         request.httpMethod = method
-        request.setValue("Bearer \(settings.integrationToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue(notionVersion, forHTTPHeaderField: "Notion-Version")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 

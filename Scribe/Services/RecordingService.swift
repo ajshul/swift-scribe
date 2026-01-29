@@ -1,4 +1,4 @@
-import AVFoundation
+@preconcurrency import AVFoundation
 import Foundation
 
 @MainActor
@@ -6,14 +6,15 @@ import Foundation
 final class RecordingService {
     private var recordingEngine = AVAudioEngine()
     private var playbackEngine = AVAudioEngine()
-    private var audioFile: AVAudioFile?
     private var playerNode: AVAudioPlayerNode?
+
+    // These are accessed from the audio callback thread
+    private nonisolated(unsafe) var audioFile: AVAudioFile?
+    private nonisolated(unsafe) var outputContinuation: AsyncStream<AVAudioPCMBuffer>.Continuation?
 
     private(set) var isRecording = false
     private(set) var isPlaying = false
     private(set) var audioFileURL: URL?
-
-    private var outputContinuation: AsyncStream<AVAudioPCMBuffer>.Continuation?
 
     /// Start recording audio, returning a stream of audio buffers for transcription.
     func startRecording() async throws -> AsyncStream<AVAudioPCMBuffer> {
@@ -32,15 +33,18 @@ final class RecordingService {
             .appendingPathExtension("m4a")
         self.audioFileURL = url
 
+        // Create the stream first so continuation is available for the tap
+        let stream = AsyncStream<AVAudioPCMBuffer>(bufferingPolicy: .unbounded) { continuation in
+            self.outputContinuation = continuation
+        }
+
         try setupEngine(writingTo: url)
 
         recordingEngine.prepare()
         try recordingEngine.start()
         isRecording = true
 
-        return AsyncStream(bufferingPolicy: .unbounded) { continuation in
-            self.outputContinuation = continuation
-        }
+        return stream
     }
 
     /// Stop the current recording.

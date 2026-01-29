@@ -9,6 +9,7 @@
 /* Begin PBXFileReference section */
 		56177C7C2DA2E84500A2A2BB /* SwiftScribe.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SwiftScribe.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		785079145B6CEF6E2D011C0E /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
+		BDB3F13B2F2BE03800DE14DF /* SwiftScribe-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "SwiftScribe-Info.plist"; sourceTree = "<group>"; };
 		ECC876D74CE254E1D1BC74C5 /* SampleCode.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = SampleCode.xcconfig; path = Configuration/SampleCode.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -34,6 +35,7 @@
 		56177C732DA2E84500A2A2BB = {
 			isa = PBXGroup;
 			children = (
+				BDB3F13B2F2BE03800DE14DF /* SwiftScribe-Info.plist */,
 				785079145B6CEF6E2D011C0E /* README.md */,
 				56177C7E2DA2E84500A2A2BB /* Scribe */,
 				56177C7D2DA2E84500A2A2BB /* Products */,
@@ -312,6 +314,7 @@
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "SwiftScribe-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Swift Scribe";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Sccribe needs access to transcribe your microphone audio";
@@ -379,6 +382,7 @@
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "SwiftScribe-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Swift Scribe";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Sccribe needs access to transcribe your microphone audio";

@@ -212,14 +212,14 @@ extension NotionOAuthService: ASWebAuthenticationPresentationContextProviding {
 
 // MARK: - Models
 
-struct OAuthResult {
+struct OAuthResult: Sendable {
     let accessToken: String
     let workspaceName: String?
     let workspaceId: String?
     let botId: String?
 }
 
-struct NotionDatabase: Identifiable, Hashable {
+struct NotionDatabase: Identifiable, Hashable, Sendable {
     let id: String
     let title: String
     let icon: String?

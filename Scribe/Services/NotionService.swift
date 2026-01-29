@@ -1,5 +1,20 @@
 import Foundation
 
+// MARK: - Data Transfer Object (Sendable)
+
+/// Contains memo data needed for Notion sync - safe to pass across actor boundaries
+struct MemoSyncData: Sendable {
+    let title: String
+    let createdAt: Date
+    let transcriptText: String?
+    let summaryText: String?
+    let decisions: [String]
+    let actionItems: [String]
+    let existingPageId: String?
+}
+
+// MARK: - Notion Service
+
 actor NotionService {
     static let shared = NotionService()
 
@@ -37,8 +52,23 @@ actor NotionService {
         let _ = try await makeRequest(url: url, method: "GET", token: settings.token)
     }
 
+    /// Sync memo data to Notion (create new or update existing).
+    /// Returns the Notion page ID for the created/updated page.
+    func syncMemo(_ data: MemoSyncData) async throws -> String {
+        if let existingPageId = data.existingPageId {
+            // Append update to existing page
+            try await appendUpdateBlocks(to: existingPageId, data: data)
+            return existingPageId
+        } else {
+            // Create new page
+            return try await createPage(for: data)
+        }
+    }
+
+    // MARK: - Page Operations
+
     /// Create a new page in the configured database with meeting notes.
-    func createPage(for memo: Memo) async throws -> String {
+    private func createPage(for data: MemoSyncData) async throws -> String {
         let settings = await Self.getSettings()
 
         guard settings.isConfigured else {
@@ -47,7 +77,7 @@ actor NotionService {
 
         let url = URL(string: "\(baseURL)/pages")!
 
-        let body = buildCreatePageBody(for: memo, databaseId: settings.databaseId)
+        let body = buildCreatePageBody(for: data, databaseId: settings.databaseId)
         let response = try await makeRequest(url: url, method: "POST", body: body, token: settings.token)
 
         guard let pageId = response["id"] as? String else {
@@ -58,9 +88,7 @@ actor NotionService {
     }
 
     /// Append blocks to an existing page.
-    func appendBlocks(to pageId: String, blocks: [[String: Any]]) async throws {
-        let settings = await Self.getSettings()
-
+    private func appendBlocks(to pageId: String, blocks: [[String: Any]], token: String) async throws {
         let url = URL(string: "\(baseURL)/blocks/\(pageId)/children")!
 
         // Notion limits to 100 blocks per request
@@ -68,33 +96,17 @@ actor NotionService {
 
         for chunk in chunkedBlocks {
             let body: [String: Any] = ["children": chunk]
-            let _ = try await makeRequest(url: url, method: "PATCH", body: body, token: settings.token)
-        }
-    }
-
-    /// Sync a memo to Notion (create new or update existing).
-    func syncMemo(_ memo: Memo) async throws {
-        if let existingPageId = memo.notionPageId {
-            // Append update to existing page
-            try await appendUpdateBlocks(to: existingPageId, memo: memo)
-        } else {
-            // Create new page
-            let pageId = try await createPage(for: memo)
-            await MainActor.run {
-                memo.notionPageId = pageId
-                memo.syncState = .synced
-                memo.lastSyncError = nil
-            }
+            let _ = try await makeRequest(url: url, method: "PATCH", body: body, token: token)
         }
     }
 
     // MARK: - Request Building
 
-    private func buildCreatePageBody(for memo: Memo, databaseId: String) -> [String: Any] {
+    private func buildCreatePageBody(for data: MemoSyncData, databaseId: String) -> [String: Any] {
         var properties: [String: Any] = [
             "Name": [
                 "title": [
-                    ["type": "text", "text": ["content": memo.title]]
+                    ["type": "text", "text": ["content": data.title]]
                 ]
             ]
         ]
@@ -103,10 +115,10 @@ actor NotionService {
         let isoFormatter = ISO8601DateFormatter()
         isoFormatter.formatOptions = [.withInternetDateTime]
         properties["Date"] = [
-            "date": ["start": isoFormatter.string(from: memo.createdAt)]
+            "date": ["start": isoFormatter.string(from: data.createdAt)]
         ]
 
-        let children = buildContentBlocks(for: memo)
+        let children = buildContentBlocks(for: data)
 
         return [
             "parent": ["database_id": databaseId],
@@ -116,12 +128,12 @@ actor NotionService {
         ]
     }
 
-    private func buildContentBlocks(for memo: Memo) -> [[String: Any]] {
+    private func buildContentBlocks(for data: MemoSyncData) -> [[String: Any]] {
         var blocks: [[String: Any]] = []
 
         // Summary section
         blocks.append(heading2("Summary"))
-        if let summary = memo.summaryText, !summary.isEmpty {
+        if let summary = data.summaryText, !summary.isEmpty {
             blocks.append(paragraph(summary))
         } else {
             blocks.append(paragraph("No summary available."))
@@ -129,37 +141,37 @@ actor NotionService {
 
         // Decisions section
         blocks.append(heading2("Decisions"))
-        if memo.decisions.isEmpty {
+        if data.decisions.isEmpty {
             blocks.append(paragraph("None"))
         } else {
-            for decision in memo.decisions {
+            for decision in data.decisions {
                 blocks.append(bulletedListItem(decision))
             }
         }
 
         // Action Items section
         blocks.append(heading2("Action Items"))
-        if memo.actionItems.isEmpty {
+        if data.actionItems.isEmpty {
             blocks.append(paragraph("None"))
         } else {
-            for item in memo.actionItems {
+            for item in data.actionItems {
                 blocks.append(toDo(item, checked: false))
             }
         }
 
         // Transcript in a toggle
-        blocks.append(toggleWithTranscript(memo.transcriptText ?? ""))
+        blocks.append(toggleWithTranscript(data.transcriptText ?? ""))
 
         // Footer
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
         formatter.timeStyle = .short
-        blocks.append(paragraph("Generated by Swift Scribe • \(formatter.string(from: memo.createdAt))"))
+        blocks.append(paragraph("Generated by Swift Scribe • \(formatter.string(from: data.createdAt))"))
 
         return blocks
     }
 
-    private func appendUpdateBlocks(to pageId: String, memo: Memo) async throws {
+    private func appendUpdateBlocks(to pageId: String, data: MemoSyncData) async throws {
         let settings = await Self.getSettings()
 
         var blocks: [[String: Any]] = []
@@ -171,22 +183,9 @@ actor NotionService {
         formatter.timeStyle = .short
         blocks.append(heading2("Updated \(formatter.string(from: Date()))"))
 
-        blocks.append(contentsOf: buildContentBlocks(for: memo))
+        blocks.append(contentsOf: buildContentBlocks(for: data))
 
-        let url = URL(string: "\(baseURL)/blocks/\(pageId)/children")!
-
-        // Notion limits to 100 blocks per request
-        let chunkedBlocks = blocks.chunked(into: 100)
-
-        for chunk in chunkedBlocks {
-            let body: [String: Any] = ["children": chunk]
-            let _ = try await makeRequest(url: url, method: "PATCH", body: body, token: settings.token)
-        }
-
-        await MainActor.run {
-            memo.syncState = .synced
-            memo.lastSyncError = nil
-        }
+        try await appendBlocks(to: pageId, blocks: blocks, token: settings.token)
     }
 
     // MARK: - Block Builders

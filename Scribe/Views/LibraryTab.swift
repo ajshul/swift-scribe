@@ -317,9 +317,25 @@ struct SyncSection: View {
         syncError = nil
         memo.syncState = .pending
 
+        // Extract data on MainActor before passing to actor
+        let syncData = MemoSyncData(
+            title: memo.title,
+            createdAt: memo.createdAt,
+            transcriptText: memo.transcriptText,
+            summaryText: memo.summaryText,
+            decisions: memo.decisions,
+            actionItems: memo.actionItems,
+            existingPageId: memo.notionPageId
+        )
+
         Task {
             do {
-                try await NotionService.shared.syncMemo(memo)
+                let pageId = try await NotionService.shared.syncMemo(syncData)
+                await MainActor.run {
+                    memo.notionPageId = pageId
+                    memo.syncState = .synced
+                    memo.lastSyncError = nil
+                }
             } catch {
                 await MainActor.run {
                     syncError = error.localizedDescription

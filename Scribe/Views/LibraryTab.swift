@@ -236,18 +236,8 @@ struct MemoDetailView: View {
                 .padding(.horizontal)
 
                 // Sync status
-                HStack {
-                    SyncBadge(state: memo.syncState)
-                    Spacer()
-                    Button {
-                        // TODO: Wire Notion sync
-                    } label: {
-                        Label("Sync to Notion", systemImage: "arrow.triangle.2.circlepath")
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(Color(red: 0.36, green: 0.69, blue: 0.55))
-                }
-                .padding(.horizontal)
+                SyncSection(memo: memo)
+                    .padding(.horizontal)
             }
             .padding(.vertical)
         }
@@ -275,6 +265,72 @@ struct MemoDetailView: View {
         let minutes = Int(duration) / 60
         let seconds = Int(duration) % 60
         return String(format: "%d:%02d", minutes, seconds)
+    }
+}
+
+// MARK: - Sync Section
+
+struct SyncSection: View {
+    @Bindable var memo: Memo
+    @State private var isSyncing = false
+    @State private var syncError: String?
+
+    var body: some View {
+        VStack(spacing: 12) {
+            HStack {
+                SyncBadge(state: memo.syncState)
+                Spacer()
+                Button {
+                    syncToNotion()
+                } label: {
+                    if isSyncing {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Label(
+                            memo.notionPageId != nil ? "Resync" : "Sync to Notion",
+                            systemImage: "arrow.triangle.2.circlepath"
+                        )
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Color(red: 0.36, green: 0.69, blue: 0.55))
+                .disabled(isSyncing || !NotionSettings.shared.isConfigured)
+            }
+
+            if !NotionSettings.shared.isConfigured {
+                Text("Configure Notion in Settings to enable sync")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if let error = syncError {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+        }
+    }
+
+    private func syncToNotion() {
+        isSyncing = true
+        syncError = nil
+        memo.syncState = .pending
+
+        Task {
+            do {
+                try await NotionService.shared.syncMemo(memo)
+            } catch {
+                await MainActor.run {
+                    syncError = error.localizedDescription
+                    memo.syncState = .failed
+                    memo.lastSyncError = error.localizedDescription
+                }
+            }
+            await MainActor.run {
+                isSyncing = false
+            }
+        }
     }
 }
 
@@ -367,36 +423,21 @@ struct ReviewNotesView: View {
                 }
                 .padding(.horizontal)
 
-                // Buttons
-                VStack(spacing: 12) {
-                    Button {
-                        // TODO: Wire Notion sync
-                    } label: {
-                        Label("Sync to Notion", systemImage: "arrow.triangle.2.circlepath")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(Color(red: 0.36, green: 0.69, blue: 0.55))
+                // Sync section
+                SyncSection(memo: memo)
+                    .padding(.horizontal)
+                    .padding(.top, 8)
 
-                    Button {
-                        dismiss()
-                    } label: {
-                        Text("Done")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
+                // Done button
+                Button {
+                    dismiss()
+                } label: {
+                    Text("Done")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
                 }
+                .buttonStyle(.bordered)
                 .padding(.horizontal)
-                .padding(.top, 8)
-
-                // Sync status
-                HStack {
-                    Spacer()
-                    SyncBadge(state: memo.syncState)
-                    Spacer()
-                }
                 .padding(.top, 8)
             }
             .padding(.vertical)

@@ -12,7 +12,14 @@ struct SettingsTab: View {
                     NavigationLink {
                         NotionSettingsView()
                     } label: {
-                        Label("Notion Integration", systemImage: "link")
+                        HStack {
+                            Label("Notion Integration", systemImage: "link")
+                            Spacer()
+                            if NotionSettings.shared.isConfigured {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundStyle(.green)
+                            }
+                        }
                     }
                 } header: {
                     Text("Sync")
@@ -69,35 +76,101 @@ struct SettingsTab: View {
     }
 }
 
-// MARK: - Notion Settings Placeholder
+// MARK: - Notion Settings
+
+@Observable
+final class NotionSettings {
+    static let shared = NotionSettings()
+
+    private let tokenKey = "notion-token"
+    private let databaseIdKey = "notion-database-id"
+    private let autoSyncKey = "notion-auto-sync"
+
+    var integrationToken: String {
+        didSet {
+            try? KeychainHelper.save(integrationToken, forKey: tokenKey)
+        }
+    }
+
+    var databaseId: String {
+        didSet {
+            UserDefaults.standard.set(databaseId, forKey: databaseIdKey)
+        }
+    }
+
+    var autoSync: Bool {
+        didSet {
+            UserDefaults.standard.set(autoSync, forKey: autoSyncKey)
+        }
+    }
+
+    var isConfigured: Bool {
+        !integrationToken.isEmpty && !databaseId.isEmpty
+    }
+
+    private init() {
+        self.integrationToken = (try? KeychainHelper.loadString(forKey: tokenKey)) ?? ""
+        self.databaseId = UserDefaults.standard.string(forKey: databaseIdKey) ?? ""
+        self.autoSync = UserDefaults.standard.bool(forKey: autoSyncKey)
+    }
+
+    func clearCredentials() {
+        try? KeychainHelper.delete(forKey: tokenKey)
+        UserDefaults.standard.removeObject(forKey: databaseIdKey)
+        integrationToken = ""
+        databaseId = ""
+    }
+}
 
 struct NotionSettingsView: View {
-    @State private var integrationToken = ""
-    @State private var databaseId = ""
-    @State private var autoSync = false
-    @State private var testResult: String?
+    @Bindable private var notionSettings = NotionSettings.shared
+    @State private var testResult: TestResult?
+    @State private var isTesting = false
+
+    enum TestResult {
+        case success
+        case failure(String)
+    }
 
     var body: some View {
         Form {
             Section {
-                SecureField("Integration Token", text: $integrationToken)
+                SecureField("Integration Token", text: $notionSettings.integrationToken)
                     .textContentType(.password)
+                    #if os(iOS)
+                        .autocapitalization(.none)
+                    #endif
 
-                TextField("Database ID", text: $databaseId)
+                TextField("Database ID", text: $notionSettings.databaseId)
                     .textContentType(.none)
                     #if os(iOS)
                         .autocapitalization(.none)
                     #endif
 
-                Button("Test Connection") {
-                    // TODO: Wire NotionService test connection
-                    testResult = "Not yet implemented"
+                Button {
+                    testConnection()
+                } label: {
+                    HStack {
+                        Text("Test Connection")
+                        Spacer()
+                        if isTesting {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+                    }
                 }
+                .disabled(notionSettings.integrationToken.isEmpty || notionSettings.databaseId.isEmpty || isTesting)
 
                 if let result = testResult {
-                    Text(result)
-                        .font(.caption)
-                        .foregroundStyle(result.contains("Success") ? .green : .orange)
+                    switch result {
+                    case .success:
+                        Label("Connection successful", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    case .failure(let message):
+                        Label(message, systemImage: "xmark.circle.fill")
+                            .foregroundStyle(.red)
+                            .font(.caption)
+                    }
                 }
             } header: {
                 Text("Notion API")
@@ -106,7 +179,7 @@ struct NotionSettingsView: View {
             }
 
             Section {
-                Toggle("Auto-sync after recording", isOn: $autoSync)
+                Toggle("Auto-sync after recording", isOn: $notionSettings.autoSync)
             } header: {
                 Text("Sync Behavior")
             } footer: {
@@ -115,10 +188,8 @@ struct NotionSettingsView: View {
 
             Section {
                 Button("Clear Notion Credentials", role: .destructive) {
-                    integrationToken = ""
-                    databaseId = ""
+                    notionSettings.clearCredentials()
                     testResult = nil
-                    // TODO: Clear Keychain
                 }
             } header: {
                 Text("Diagnostics")
@@ -128,5 +199,25 @@ struct NotionSettingsView: View {
         #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
         #endif
+    }
+
+    private func testConnection() {
+        isTesting = true
+        testResult = nil
+
+        Task {
+            do {
+                try await NotionService.shared.testConnection()
+                await MainActor.run {
+                    testResult = .success
+                    isTesting = false
+                }
+            } catch {
+                await MainActor.run {
+                    testResult = .failure(error.localizedDescription)
+                    isTesting = false
+                }
+            }
+        }
     }
 }

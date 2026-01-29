@@ -1,175 +1,105 @@
-# Swift Scribe - AI-Powered Speech-to-Text Private Transcription App for iOS 26 & macOS 26+
-[![Swift](https://img.shields.io/badge/Swift-6.1+-orange.svg)](https://swift.org)
+# Swift Scribe - Conference Room Meeting Recorder for iOS 26+
 
-> **Real-time voice transcription, advanced speaker diarization, on-device AI processing, and intelligent note-taking exclusively for iOS 26 & macOS 26 and above**
+[![Swift](https://img.shields.io/badge/Swift-6.2+-orange.svg)](https://swift.org)
 
-Uses Apple's new Foundation Model Framework and SpeechTranscriber. Requires macOS 26 to run and compile the project. The goal is to demonstrate how easy it is now to build local, AI-first apps.
+> **On-device transcription, AI-powered meeting notes, and Notion sync - all running locally on your iPhone.**
 
-The goal of this is mostly to act as an example for others looking to work with the new models and [FluidAudio](https://github.com/FluidInference/FluidAudio). We will probably not actively maintain this unless there's significant traction. If you have problem, please consider joining our discord to chat more about this! 
+Swift Scribe is a privacy-first meeting recorder designed for conference room use. Record meetings, get automatic transcription and AI-generated notes (summary, decisions, action items), and sync to Notion - all without sending any data to external servers for AI processing.
 
-[![Discord](https://img.shields.io/badge/Discord-Join%20Chat-7289da.svg)](https://discord.gg/WNsvaCtmDe)
+## Features
 
-## 🎯 Overview
+- **One-tap recording** - Large record button, live transcript preview, meeting timer
+- **On-device AI** - Uses iOS 26 Foundation Models for summarization (no cloud AI)
+- **Structured notes** - Automatic extraction of summary, decisions, and action items
+- **Notion sync** - Push meeting notes to your Notion database with one tap
+- **Background recording** - Phone can lock/sleep while recording continues
+- **Privacy-focused** - Audio and AI processing never leave your device
 
-**Swift Scribe** is a privacy-first, AI-enhanced transcription application built exclusively for iOS 26/macOS 26+ that transforms spoken words into organized, searchable notes with professional-grade speaker identification. Using Apple's latest SpeechAnalyzer and SpeechTranscriber frameworks (available only in iOS 26/macOS 26+) combined with FluidAudio's advanced speaker diarization and on-device Foundation Models, it delivers real-time speech recognition, intelligent speaker attribution, content analysis, and advanced text editing capabilities.
+## Requirements
 
+- **iOS 26+** (required - uses new Apple frameworks)
+- **Xcode 26 Beta** with Swift 6.2+
+- **Apple Intelligence enabled** on device (for AI summarization)
+- Device with microphone permissions
 
-![Swift Scribe Demo - AI Speech-to-Text Transcription](Docs/swift-scribe.gif)
+## Installation
 
-![Swift Scribe Demo - AI Speech-to-Text Transcription iOS](Docs/phone-scribe.gif)
-
-## 🛠 Technical Requirements & Specifications
-
-### **System Requirements**
-- **iOS 26 Beta or newer** (REQUIRED - will not work on iOS 25 or earlier)
-- **macOS 26 Beta or newer** (REQUIRED - will not work on macOS 25 or earlier)  
-- **Xcode Beta** with latest Swift 6.2+ toolchain
-- **Swift 6.2+** programming language
-- **Apple Developer Account** with beta access to iOS 26/macOS 26
-- **Microphone permissions** for speech input
-
-
-## 🚀 Installation & Setup Guide
-
-### **Development Installation**
-
-1. **Clone the repository:**
-
-   ```bash
-   git clone https://github.com/seamlesscompute/swift-scribe
-   cd swift-scribe
-   ```
-
-2. **Open in Xcode Beta:**
-
-   ```bash
-   open SwiftScribe.xcodeproj
-   ```
-
-3. **Configure deployment targets** for iOS 26 Beta/macOS 26 Beta or newer
-
-4. **Build and run** using Xcode Beta with Swift 6.2+ toolchain
-
-⚠️ **Note**: Ensure your device is running iOS 26+ or macOS 26+ before installation.
-
-## 📋 Use Cases & Applications
-
-**Transform your workflow with AI-powered transcription:**
-
-### **Business & Professional**
-- 📊 **Meeting transcription** with automatic speaker identification and minute generation
-- 📝 **Interview recording** with real-time speaker diarization and attribution
-- 💼 **Business documentation** with speaker-tagged content and report creation
-- 🎯 **Sales call analysis** with participant tracking and follow-up automation
-
-### **Healthcare & Medical**
-- 🏥 **Medical dictation** and clinical documentation
-- 👨‍⚕️ **Patient interview transcription** with medical terminology
-- 📋 **Healthcare report generation** and chart notes
-- 🔬 **Research interview analysis** and coding
-
-### **Education & Academic**
-- 🎓 **Lecture transcription** with chapter segmentation
-- 📚 **Study note creation** from audio recordings
-- 🔍 **Research interview analysis** with theme identification
-- 📖 **Language learning** with pronunciation feedback
-
-### **Legal & Compliance**
-- ⚖️ **Court proceeding transcription** with timestamp accuracy
-- 📑 **Deposition recording** and legal documentation
-- 🏛️ **Legal research** and case note compilation
-- 📋 **Compliance documentation** and audit trails
-
-### **Content Creation & Media**
-- 🎙️ **Podcast transcription** with automatic speaker labeling and show note generation
-- 🎬 **Video content scripting** with professional speaker diarization
-- ✍️ **Article writing** from multi-speaker voice recordings
-- 📺 **Content creation workflows** with speaker-attributed production notes
-
-### **Accessibility & Inclusion**
-- 🦻 **Real-time captions** for hearing-impaired users
-- 🗣️ **Speech accessibility tools** with customizable formatting
-- 🌐 **Multi-language accessibility** support
-- 🎯 **Assistive technology integration**
-
-## 🏗 Project Architecture & Code Structure
-
-```
-Scribe/                     # Core application logic and modules
-├── Audio/                  # Audio capture, processing, and FluidAudio speaker diarization
-├── Transcription/         # SpeechAnalyzer and SpeechTranscriber implementation
-├── AI/                    # Foundation Models integration and AI processing
-├── Views/                 # SwiftUI interface with rich text editing
-├── Models/                # Data models for memos, transcription, speakers, and AI
-├── Storage/               # Local data persistence and model management
-└── Extensions/            # Swift extensions and utilities
+```bash
+git clone https://github.com/seamlesscompute/swift-scribe
+cd swift-scribe
+open SwiftScribe.xcodeproj
 ```
 
-**Key Components:**
+Build and run on an iOS 26+ device or simulator.
 
-- **Audio Engine** - Real-time audio capture and preprocessing
-- **Speech Pipeline** - SpeechAnalyzer integration and transcription flow
-- **Speaker Diarization** - FluidAudio integration for professional speaker identification
-- **AI Processing** - Foundation Models for content analysis
-- **Rich Text System** - AttributedString with speaker attribution and advanced formatting
-- **Data Layer** - SwiftData integration with speaker models and local storage
+## Usage
 
-## ⭐ Advanced Features
+### Recording a Meeting
 
-### **🎤 Professional Speaker Diarization**
-- **FluidAudio Integration**: Industry-grade speaker identification and clustering
-- **Research-Grade Performance**: Competitive with academic benchmarks (17.7% DER on AMI dataset)
-- **Real-time Processing**: Live speaker identification during recording with minimal latency
-- **Speaker Attribution**: Color-coded transcription with confidence scores and timeline mapping
+1. Open the app to the **Record** tab
+2. Edit the meeting title if desired (defaults to "Meeting – [date/time]")
+3. Tap the **green record button** to start
+4. Speak - you'll see live transcription as you talk
+5. Tap the **red stop button** when finished
+6. Wait for transcription and AI summarization to complete
+7. Review your notes: summary, decisions, action items, and full transcript
 
-### **🧠 Intelligent Speaker Management**
-- **Automatic Speaker Detection**: No manual configuration required
-- **Speaker Persistence**: Consistent speaker identification across recording sessions  
-- **Visual Attribution**: Rich text formatting with speaker-specific colors and metadata
-- **Speaker Analytics**: Detailed insights into speaking patterns and participation
+### Setting Up Notion Sync
 
-### **🔒 Privacy-First Architecture**
-- **Fully On-Device**: All processing happens locally - no cloud dependencies
-- **Zero Data Transmission**: Audio and speaker data never leave your device
-- **Secure Storage**: Speaker embeddings and models stored securely with SwiftData
-- **Complete Offline Operation**: Works without internet connectivity
+1. Go to **Settings** > **Notion Integration**
+2. Create a Notion integration at [notion.so/my-integrations](https://www.notion.so/my-integrations)
+3. Copy your **Integration Token** (starts with `ntn_`)
+4. Create or choose a Notion database for meeting notes
+5. Share the database with your integration (click ... > Connections > Add your integration)
+6. Copy the **Database ID** from the database URL
+7. Paste both values in the app and tap **Test Connection**
 
-## 🗺 Development Roadmap & Future Features
+### Syncing Notes
 
-### **Phase 1: Core Features** ✅ **COMPLETED**
+- From the **Review Notes** screen after recording, tap **Sync to Notion**
+- Or from the **Library** tab, open any recording and tap **Sync to Notion**
+- Enable **Auto-sync** in Settings to sync automatically after each recording
 
-- ✅ Real-time speech transcription
-- ✅ On-device AI processing  
-- ✅ Rich text editing
-- ✅ **Professional speaker diarization** with FluidAudio integration
-- ✅ **Speaker attribution** and visual formatting
+## Architecture
 
-### **Phase 2: Advanced Features** 
+```
+Scribe/
+├── Services/
+│   ├── RecordingService.swift      # AVAudioEngine recording
+│   ├── TranscriptionService.swift  # SpeechAnalyzer streaming
+│   ├── SummarizationService.swift  # Foundation Models AI
+│   ├── NotionService.swift         # Notion API client
+│   └── KeychainHelper.swift        # Secure token storage
+├── Models/
+│   ├── MemoModel.swift             # SwiftData persistence
+│   └── AppSettings.swift           # User preferences
+└── Views/
+    ├── RecordTab.swift             # Recording UI
+    ├── LibraryTab.swift            # Past recordings
+    └── SettingsTab.swift           # Configuration
+```
 
-- 🔊 **Output audio tap** for system audio capture
-- 🌐 **Enhanced multi-language** support
-- 📊 **Advanced analytics** and speaker insights
-- 🎯 **Speaker voice profiles** and personalization
+## Privacy
 
-## 📄 License & Legal
+- **Audio** - Stays on device, saved to app sandbox
+- **Transcription** - Processed by iOS Speech framework (on-device)
+- **AI Summarization** - Uses iOS Foundation Models (on-device)
+- **Notion sync** - Only syncs when you tap the button (or enable auto-sync)
+- **Token storage** - Notion token stored in iOS Keychain
 
-This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for complete details.
+No data is sent to any server for AI processing. The only network calls are to Notion's API when you explicitly sync.
 
-## 🙏 Acknowledgments & Credits
+## Documentation
 
-- **Apple WWDC 2025** sessions on SpeechAnalyzer, Foundation Models, and Rich Text editing
-- **Apple Developer Frameworks** - SpeechAnalyzer, Foundation Models, Rich Text Editor
-- **FluidAudio** - Professional speaker diarization and voice identification technology
+See the `docs/` folder for detailed documentation:
 
-## 🚀 Getting Started with AI Development Tools
+- [ARCHITECTURE.md](docs/ARCHITECTURE.md) - Service modules and data flow
+- [FOUNDATION_MODELS.md](docs/FOUNDATION_MODELS.md) - AI integration details
+- [SPEECH_ANALYZER.md](docs/SPEECH_ANALYZER.md) - Transcription implementation
+- [NOTION_SYNC.md](docs/NOTION_SYNC.md) - API integration and configuration
+- [STATE_MACHINE.md](docs/STATE_MACHINE.md) - Recording session states
+- [PRIVACY_SECURITY.md](docs/PRIVACY_SECURITY.md) - Data handling and security
 
-**For Cursor & Windsurf IDE users:** Leverage AI agents to explore the comprehensive documentation in the `Docs/` directory, featuring complete WWDC 2025 session transcripts covering:
+## License
 
-- 🎤 **SpeechAnalyzer & SpeechTranscriber** API implementation guides
-- 🤖 **Foundation Models** framework integration
-- ✏️ **Rich Text Editor** advanced capabilities  
-- 🔊 **Audio processing** improvements and optimizations
-
----
-
-**⭐ Star this repo** if you find it useful! | **🔗 Share** with developers interested in AI-powered speech transcription
+MIT License - see [LICENSE](LICENSE) for details.

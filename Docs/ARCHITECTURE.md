@@ -94,25 +94,27 @@ Primary data model with fields:
 User taps Record
   -> RecordingService.startRecording()
   -> AVAudioEngine captures buffers
-  -> Buffers written to .m4a file
+  -> Buffers written to .m4a file (AAC 64kbps)
   -> Buffers forwarded to TranscriptionService
-  -> TranscriptionService yields results
-  -> UI shows live transcript
+  -> TranscriptionService streams to SpeechAnalyzer
+  -> UI shows live transcript (finalized + volatile text)
 
 User taps Stop
   -> RecordingService.stopRecording()
-  -> TranscriptionService.finalize()
-  -> SummarizationService.summarize(transcript)
-  -> MemoModel saved to SwiftData
-  -> Navigate to Review Notes
-  -> (Auto-sync if enabled) -> NotionService.sync()
+  -> TranscriptionService.stop() - finalizes analysis
+  -> SummarizationService.generateMeetingNotes()
+    -> @Generable MeetingNotes for structured output
+  -> MemoModel updated with transcript + AI notes
+  -> Navigate to ReviewNotesView
+  -> (If auto-sync enabled) -> NotionService.syncMemo()
 ```
 
 ### Sync Flow
 ```
 User taps "Sync to Notion" (or auto-sync triggers)
-  -> NotionService.createPage(memo) or .updatePage(memo)
+  -> NotionService.syncMemo(memo)
+  -> If no notionPageId: createPage() with full content
+  -> If has notionPageId: appendBlocks() with update
   -> On success: memo.syncState = .synced, store notionPageId
-  -> On failure: memo.syncState = .failed(error)
-  -> SyncQueue retries failed syncs
+  -> On failure: memo.syncState = .failed, store lastSyncError
 ```

@@ -4,6 +4,17 @@ import FoundationModels
 import SwiftData
 import SwiftUI
 
+// MARK: - Sync State
+
+enum SyncState: String, Codable {
+    case notConnected
+    case pending
+    case synced
+    case failed
+}
+
+// MARK: - Memo Model
+
 @Model
 class Memo {
     var id: UUID

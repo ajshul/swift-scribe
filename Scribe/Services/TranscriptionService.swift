@@ -9,8 +9,8 @@ final class TranscriptionService {
     private var analyzer: SpeechAnalyzer?
     private var recognizerTask: Task<Void, any Error>?
 
-    private let inputSequence: AsyncStream<AnalyzerInput>
-    private let inputBuilder: AsyncStream<AnalyzerInput>.Continuation
+    private var inputSequence: AsyncStream<AnalyzerInput>?
+    private var inputBuilder: AsyncStream<AnalyzerInput>.Continuation?
 
     private let bufferConverter = BufferConverter()
     private(set) var analyzerFormat: AVAudioFormat?
@@ -24,16 +24,17 @@ final class TranscriptionService {
         components: .init(languageCode: .english, languageRegion: .unitedStates)
     )
 
-    init() {
-        let (stream, continuation) = AsyncStream<AnalyzerInput>.makeStream()
-        self.inputSequence = stream
-        self.inputBuilder = continuation
-    }
+    init() {}
 
     /// Start transcription, returning when setup is complete.
     func start() async throws {
         finalizedText = ""
         volatileText = ""
+
+        // Create new stream for this session (enables reuse after stop)
+        let (stream, continuation) = AsyncStream<AnalyzerInput>.makeStream()
+        self.inputSequence = stream
+        self.inputBuilder = continuation
 
         transcriber = SpeechTranscriber(
             locale: Self.preferredLocale,
@@ -64,13 +65,17 @@ final class TranscriptionService {
             }
         }
 
-        try await analyzer?.start(inputSequence: inputSequence)
+        try await analyzer?.start(inputSequence: stream)
     }
 
     /// Feed an audio buffer into the transcription pipeline.
     func processBuffer(_ buffer: AVAudioPCMBuffer) throws {
         guard let analyzerFormat else {
             throw TranscriptionError.invalidAudioDataType
+        }
+
+        guard let inputBuilder else {
+            throw TranscriptionError.failedToSetupRecognitionStream
         }
 
         let converted = try bufferConverter.convertBuffer(buffer, to: analyzerFormat)
@@ -80,7 +85,9 @@ final class TranscriptionService {
 
     /// Finalize transcription and stop.
     func stop() async {
-        inputBuilder.finish()
+        inputBuilder?.finish()
+        inputBuilder = nil
+        inputSequence = nil
         try? await analyzer?.finalizeAndFinishThroughEndOfInput()
         recognizerTask?.cancel()
         recognizerTask = nil

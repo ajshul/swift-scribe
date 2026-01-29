@@ -41,6 +41,8 @@ struct RecordTab: View {
                         .padding(.horizontal, 32)
                         .disabled(sessionState != .idle)
                         .opacity(sessionState == .idle ? 1.0 : 0.6)
+                        .accessibilityLabel("Meeting title")
+                        .accessibilityHint("Enter a title for your meeting")
                 }
 
                 Spacer()
@@ -94,6 +96,8 @@ struct RecordTab: View {
                     .disabled(sessionState.isProcessing)
                     .opacity(sessionState.isProcessing ? 0.5 : 1.0)
                     .sensoryFeedback(.impact(weight: .medium), trigger: sessionState)
+                    .accessibilityLabel(sessionState == .recording ? "Stop recording" : "Start recording")
+                    .accessibilityHint(sessionState == .recording ? "Tap to stop recording and process your meeting" : "Tap to start recording your meeting")
 
                     if sessionState.isProcessing {
                         ProgressView()
@@ -151,7 +155,7 @@ struct RecordTab: View {
         sessionState = .recording
         recordingStartTime = Date()
         recordingDuration = 0
-        recordingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
+        recordingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
             Task { @MainActor in
                 if let start = recordingStartTime {
                     recordingDuration = Date().timeIntervalSince(start)
@@ -222,6 +226,38 @@ struct RecordTab: View {
             } catch {
                 print("[RecordTab] AI enhancement failed: \(error)")
                 // Continue even if AI fails - transcript is still saved
+            }
+
+            // Auto-sync if enabled and configured
+            if NotionSettings.shared.autoSync && NotionSettings.shared.isConfigured {
+                await MainActor.run {
+                    sessionState = .syncing
+                }
+
+                let syncData = MemoSyncData(
+                    title: memo.title,
+                    createdAt: memo.createdAt,
+                    transcriptText: memo.transcriptText,
+                    summaryText: memo.summaryText,
+                    decisions: memo.decisions,
+                    actionItems: memo.actionItems,
+                    existingPageId: memo.notionPageId
+                )
+
+                do {
+                    let pageId = try await NotionService.shared.syncMemo(syncData)
+                    await MainActor.run {
+                        memo.notionPageId = pageId
+                        memo.syncState = .synced
+                        memo.lastSyncError = nil
+                    }
+                } catch {
+                    await MainActor.run {
+                        memo.syncState = .failed
+                        memo.lastSyncError = error.localizedDescription
+                    }
+                    print("[RecordTab] Auto-sync failed: \(error)")
+                }
             }
 
             await MainActor.run {

@@ -2,14 +2,17 @@
 import Foundation
 import os
 
-class BufferConverter {
+/// Thread-safe audio buffer converter using lock protection
+final class BufferConverter: @unchecked Sendable {
     enum Error: Swift.Error {
         case failedToCreateConverter
         case failedToCreateConversionBuffer
         case conversionFailed(NSError?)
     }
 
+    private let lock = OSAllocatedUnfairLock()
     private var converter: AVAudioConverter?
+
     func convertBuffer(_ buffer: AVAudioPCMBuffer, to format: AVAudioFormat) throws
         -> AVAudioPCMBuffer
     {
@@ -17,6 +20,10 @@ class BufferConverter {
         guard inputFormat != format else {
             return buffer
         }
+
+        // Protect converter access with lock
+        lock.lock()
+        defer { lock.unlock() }
 
         if converter == nil || converter?.outputFormat != format {
             converter = AVAudioConverter(from: inputFormat, to: format)

@@ -4,6 +4,8 @@ import SwiftUI
 struct LibraryTab: View {
     @Query(sort: \Memo.createdAt, order: .reverse) private var memos: [Memo]
     @Environment(\.modelContext) private var modelContext
+    @State private var memoToDelete: Memo?
+    @State private var showDeleteConfirmation = false
 
     var body: some View {
         NavigationStack {
@@ -41,12 +43,29 @@ struct LibraryTab: View {
                     }
                 #endif
             }
+            .alert("Delete Recording?", isPresented: $showDeleteConfirmation) {
+                Button("Cancel", role: .cancel) {
+                    memoToDelete = nil
+                }
+                Button("Delete", role: .destructive) {
+                    if let memo = memoToDelete {
+                        modelContext.delete(memo)
+                        memoToDelete = nil
+                    }
+                }
+            } message: {
+                if let memo = memoToDelete {
+                    Text("Are you sure you want to delete \"\(memo.title)\"? This cannot be undone.")
+                }
+            }
         }
     }
 
     private func deleteMemos(offsets: IndexSet) {
-        for index in offsets {
-            modelContext.delete(memos[index])
+        // Show confirmation for the first item to delete
+        if let index = offsets.first {
+            memoToDelete = memos[index]
+            showDeleteConfirmation = true
         }
     }
 }
@@ -99,13 +118,6 @@ struct MemoRow: View {
 
 // MARK: - Sync Badge
 
-enum SyncState: String, Codable {
-    case notConnected
-    case pending
-    case synced
-    case failed
-}
-
 struct SyncBadge: View {
     let state: SyncState
 
@@ -146,6 +158,7 @@ struct MemoDetailView: View {
     @Bindable var memo: Memo
     @State private var isPlaying = false
     @State private var recordingService = RecordingService()
+    @State private var playbackError: String?
 
     var body: some View {
         ScrollView {
@@ -208,6 +221,8 @@ struct MemoDetailView: View {
                             Label(isPlaying ? "Stop" : "Play Recording", systemImage: isPlaying ? "stop.fill" : "play.fill")
                         }
                         .buttonStyle(.bordered)
+                        .accessibilityLabel(isPlaying ? "Stop playback" : "Play recording")
+                        .accessibilityHint(isPlaying ? "Tap to stop audio playback" : "Tap to listen to the recording")
 
                         if let duration = memo.duration {
                             Text(formatDuration(duration))
@@ -245,6 +260,13 @@ struct MemoDetailView: View {
         #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
         #endif
+        .alert("Playback Error", isPresented: .constant(playbackError != nil)) {
+            Button("OK") { playbackError = nil }
+        } message: {
+            if let error = playbackError {
+                Text(error)
+            }
+        }
     }
 
     private func togglePlayback() {
@@ -256,7 +278,7 @@ struct MemoDetailView: View {
                 try recordingService.playRecording(url: url)
                 isPlaying = true
             } catch {
-                print("Playback error: \(error)")
+                playbackError = "Could not play recording: \(error.localizedDescription)"
             }
         }
     }
@@ -296,6 +318,8 @@ struct SyncSection: View {
                 .buttonStyle(.borderedProminent)
                 .tint(Color(red: 0.36, green: 0.69, blue: 0.55))
                 .disabled(isSyncing || !NotionSettings.shared.isConfigured)
+                .accessibilityLabel(memo.notionPageId != nil ? "Resync to Notion" : "Sync to Notion")
+                .accessibilityHint(isSyncing ? "Currently syncing" : "Tap to upload your notes to Notion")
             }
 
             if !NotionSettings.shared.isConfigured {

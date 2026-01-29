@@ -65,7 +65,7 @@ struct MemoRow: View {
 
                 Spacer()
 
-                SyncBadge(state: .notConnected)
+                SyncBadge(state: memo.syncState)
             }
 
             HStack(spacing: 8) {
@@ -80,8 +80,8 @@ struct MemoRow: View {
                 }
             }
 
-            if !memo.text.characters.isEmpty {
-                Text(String(memo.text.characters.prefix(80)))
+            if let summary = memo.summaryText, !summary.isEmpty {
+                Text(summary)
                     .font(.caption)
                     .foregroundStyle(.tertiary)
                     .lineLimit(2)
@@ -140,10 +140,12 @@ struct SyncBadge: View {
     }
 }
 
-// MARK: - Placeholder Detail View
+// MARK: - Memo Detail View
 
 struct MemoDetailView: View {
-    let memo: Memo
+    @Bindable var memo: Memo
+    @State private var isPlaying = false
+    @State private var recordingService = RecordingService()
 
     var body: some View {
         ScrollView {
@@ -153,25 +155,97 @@ struct MemoDetailView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Label("Summary", systemImage: "sparkles")
                             .font(.headline)
+                            .foregroundStyle(Color(red: 0.36, green: 0.69, blue: 0.55))
+
                         Text(summary)
                             .font(.body)
+                            .textSelection(.enabled)
+                    }
+                    .padding(.horizontal)
+                }
+
+                // Decisions
+                if !memo.decisions.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("Decisions", systemImage: "checkmark.circle")
+                            .font(.headline)
+
+                        ForEach(memo.decisions, id: \.self) { decision in
+                            HStack(alignment: .top, spacing: 8) {
+                                Image(systemName: "circle.fill")
+                                    .font(.system(size: 6))
+                                    .padding(.top, 6)
+                                Text(decision)
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+
+                // Action Items
+                if !memo.actionItems.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("Action Items", systemImage: "checklist")
+                            .font(.headline)
+
+                        ForEach(memo.actionItems, id: \.self) { item in
+                            HStack(alignment: .top, spacing: 8) {
+                                Image(systemName: "square")
+                                    .font(.system(size: 14))
+                                Text(item)
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+
+                // Playback
+                if memo.url != nil {
+                    HStack {
+                        Button {
+                            togglePlayback()
+                        } label: {
+                            Label(isPlaying ? "Stop" : "Play Recording", systemImage: isPlaying ? "stop.fill" : "play.fill")
+                        }
+                        .buttonStyle(.bordered)
+
+                        if let duration = memo.duration {
+                            Text(formatDuration(duration))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                     .padding(.horizontal)
                 }
 
                 // Transcript section
-                VStack(alignment: .leading, spacing: 8) {
-                    Label("Transcript", systemImage: "doc.plaintext")
-                        .font(.headline)
-
-                    if memo.text.characters.isEmpty {
-                        Text("No transcript available")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        Text(memo.textBrokenUpByParagraphs())
+                DisclosureGroup {
+                    if let transcript = memo.transcriptText, !transcript.isEmpty {
+                        Text(transcript)
                             .font(.body)
                             .textSelection(.enabled)
+                            .padding(.top, 8)
+                    } else {
+                        Text("No transcript available")
+                            .foregroundStyle(.secondary)
                     }
+                } label: {
+                    Label("Transcript", systemImage: "doc.plaintext")
+                        .font(.headline)
+                }
+                .padding(.horizontal)
+
+                // Sync status
+                HStack {
+                    SyncBadge(state: memo.syncState)
+                    Spacer()
+                    Button {
+                        // TODO: Wire Notion sync
+                    } label: {
+                        Label("Sync to Notion", systemImage: "arrow.triangle.2.circlepath")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Color(red: 0.36, green: 0.69, blue: 0.55))
                 }
                 .padding(.horizontal)
             }
@@ -182,61 +256,148 @@ struct MemoDetailView: View {
             .navigationBarTitleDisplayMode(.inline)
         #endif
     }
+
+    private func togglePlayback() {
+        if isPlaying {
+            recordingService.stopPlayback()
+            isPlaying = false
+        } else if let url = memo.url {
+            do {
+                try recordingService.playRecording(url: url)
+                isPlaying = true
+            } catch {
+                print("Playback error: \(error)")
+            }
+        }
+    }
+
+    private func formatDuration(_ duration: TimeInterval) -> String {
+        let minutes = Int(duration) / 60
+        let seconds = Int(duration) % 60
+        return String(format: "%d:%02d", minutes, seconds)
+    }
 }
 
-// MARK: - Placeholder Review Notes View
+// MARK: - Review Notes View
 
 struct ReviewNotesView: View {
-    let memo: Memo
+    @Bindable var memo: Memo
+    @Environment(\.dismiss) private var dismiss
+    @State private var showingTranscript = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                Text("Review Notes")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
-                    .padding(.horizontal)
-
                 // Summary
                 VStack(alignment: .leading, spacing: 8) {
-                    Label("Summary", systemImage: "sparkles")
-                        .font(.headline)
+                    HStack {
+                        Label("Summary", systemImage: "sparkles")
+                            .font(.headline)
+                            .foregroundStyle(Color(red: 0.36, green: 0.69, blue: 0.55))
+                        Spacer()
+                    }
+
                     if let summary = memo.summary {
                         Text(summary)
-                    } else {
-                        Text("Summary will appear here after processing.")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .padding(.horizontal)
-
-                // Transcript
-                DisclosureGroup {
-                    if memo.text.characters.isEmpty {
-                        Text("No transcript available")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        Text(memo.textBrokenUpByParagraphs())
                             .font(.body)
                             .textSelection(.enabled)
+                    } else if let summaryText = memo.summaryText {
+                        Text(summaryText)
+                            .font(.body)
+                            .textSelection(.enabled)
+                    } else {
+                        Text("Summary not available")
+                            .foregroundStyle(.secondary)
                     }
-                } label: {
-                    Label("Transcript", systemImage: "doc.plaintext")
-                        .font(.headline)
                 }
                 .padding(.horizontal)
 
-                // Sync button placeholder
-                Button {
-                    // TODO: Wire Notion sync
-                } label: {
-                    Label("Sync to Notion", systemImage: "arrow.triangle.2.circlepath")
+                // Decisions
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("Decisions", systemImage: "checkmark.circle")
                         .font(.headline)
-                        .frame(maxWidth: .infinity)
+
+                    if memo.decisions.isEmpty {
+                        Text("None")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(memo.decisions, id: \.self) { decision in
+                            HStack(alignment: .top, spacing: 8) {
+                                Image(systemName: "circle.fill")
+                                    .font(.system(size: 6))
+                                    .padding(.top, 6)
+                                Text(decision)
+                            }
+                        }
+                    }
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(Color(red: 0.36, green: 0.69, blue: 0.55))
                 .padding(.horizontal)
+
+                // Action Items
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("Action Items", systemImage: "checklist")
+                        .font(.headline)
+
+                    if memo.actionItems.isEmpty {
+                        Text("None")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(memo.actionItems, id: \.self) { item in
+                            HStack(alignment: .top, spacing: 8) {
+                                Image(systemName: "square")
+                                    .font(.system(size: 14))
+                                Text(item)
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal)
+
+                // Transcript toggle
+                DisclosureGroup("Transcript", isExpanded: $showingTranscript) {
+                    if let transcript = memo.transcriptText, !transcript.isEmpty {
+                        Text(transcript)
+                            .font(.body)
+                            .textSelection(.enabled)
+                            .padding(.top, 8)
+                    } else {
+                        Text("No transcript available")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.horizontal)
+
+                // Buttons
+                VStack(spacing: 12) {
+                    Button {
+                        // TODO: Wire Notion sync
+                    } label: {
+                        Label("Sync to Notion", systemImage: "arrow.triangle.2.circlepath")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Color(red: 0.36, green: 0.69, blue: 0.55))
+
+                    Button {
+                        dismiss()
+                    } label: {
+                        Text("Done")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                }
+                .padding(.horizontal)
+                .padding(.top, 8)
+
+                // Sync status
+                HStack {
+                    Spacer()
+                    SyncBadge(state: memo.syncState)
+                    Spacer()
+                }
+                .padding(.top, 8)
             }
             .padding(.vertical)
         }

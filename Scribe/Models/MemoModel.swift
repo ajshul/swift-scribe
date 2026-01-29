@@ -14,12 +14,16 @@ class Memo {
     var isDone: Bool
     var duration: TimeInterval?
 
-    // AI-generated content
-    var summary: AttributedString?
+    // Transcript (plain text for easier processing)
     var transcriptText: String?
+
+    // AI-generated content (structured)
     var summaryText: String?
-    var decisionsText: String?
-    var actionItemsText: String?
+    var decisionsText: String?  // JSON array as string for persistence
+    var actionItemsText: String?  // JSON array as string for persistence
+
+    // Legacy field for AttributedString summary display
+    var summary: AttributedString?
 
     // Notion sync
     var notionPageId: String?
@@ -29,6 +33,35 @@ class Memo {
     var syncState: SyncState {
         get { SyncState(rawValue: syncStateRaw) ?? .notConnected }
         set { syncStateRaw = newValue.rawValue }
+    }
+
+    // Computed properties for structured data
+    var decisions: [String] {
+        get {
+            guard let data = decisionsText?.data(using: .utf8),
+                  let array = try? JSONDecoder().decode([String].self, from: data)
+            else { return [] }
+            return array
+        }
+        set {
+            if let data = try? JSONEncoder().encode(newValue) {
+                decisionsText = String(data: data, encoding: .utf8)
+            }
+        }
+    }
+
+    var actionItems: [String] {
+        get {
+            guard let data = actionItemsText?.data(using: .utf8),
+                  let array = try? JSONDecoder().decode([String].self, from: data)
+            else { return [] }
+            return array
+        }
+        set {
+            if let data = try? JSONEncoder().encode(newValue) {
+                actionItemsText = String(data: data, encoding: .utf8)
+            }
+        }
     }
 
     init(
@@ -48,68 +81,47 @@ class Memo {
         self.syncStateRaw = SyncState.notConnected.rawValue
     }
 
+    /// Generate AI title and structured notes from transcript.
+    @MainActor
     func generateAIEnhancements() async throws {
-        guard SystemLanguageModel.default.isAvailable else {
-            throw FoundationModelsError.generationFailed(
-                NSError(domain: "Foundation Models not available", code: -1))
+        let service = SummarizationService.shared
+        guard service.isAvailable else {
+            throw SummarizationError.modelUnavailable
         }
 
         let transcript = transcriptText ?? String(text.characters)
         guard !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw FoundationModelsError.generationFailed(
-                NSError(domain: "No content to enhance", code: -2))
+            throw SummarizationError.emptyTranscript
         }
 
-        let titleResult = try? await generateEnhancedTitle(from: transcript)
-        let summaryResult = try? await generateRichSummary(from: transcript)
+        // Generate title
+        if let newTitle = try? await service.generateTitle(from: transcript) {
+            self.title = newTitle
+        }
 
-        self.title = titleResult ?? title
-        self.summary = summaryResult ?? AttributedString("Summary could not be generated.")
-    }
+        // Generate structured notes
+        let notes = try await service.generateMeetingNotes(from: transcript)
 
-    private func generateEnhancedTitle(from text: String) async throws -> String {
-        let session = FoundationModelsHelper.createSession(
-            instructions: """
-                You are an expert at creating clear, descriptive titles for meeting transcripts.
-                Create a concise, informative title that captures the main topic.
-                Keep titles between 3-8 words. Use title case. Do not use quotes.
-                """)
+        self.summaryText = notes.summary
+        self.decisions = notes.decisions
+        self.actionItems = notes.actionItems
 
-        let title = try await FoundationModelsHelper.generateText(
-            session: session,
-            prompt: "Create a title for this meeting transcript:\n\n\(text.prefix(2000))",
-            options: FoundationModelsHelper.temperatureOptions(0.3)
-        )
-        return title.trimmingCharacters(in: .whitespacesAndNewlines)
-            .replacingOccurrences(of: "\"", with: "")
-    }
+        // Also create markdown summary for display
+        var markdown = notes.summary
+        if !notes.decisions.isEmpty {
+            markdown += "\n\n**Decisions:**\n"
+            for decision in notes.decisions {
+                markdown += "• \(decision)\n"
+            }
+        }
+        if !notes.actionItems.isEmpty {
+            markdown += "\n\n**Action Items:**\n"
+            for item in notes.actionItems {
+                markdown += "- [ ] \(item)\n"
+            }
+        }
 
-    private func generateRichSummary(from text: String) async throws -> AttributedString {
-        let session = FoundationModelsHelper.createSession(
-            instructions: """
-                You are a meeting notes assistant. Create a concise summary of the meeting.
-                Include key points and important details. Output in markdown format.
-                Keep it to 2-4 paragraphs.
-                """)
-
-        let summaryText = try await FoundationModelsHelper.generateText(
-            session: session,
-            prompt: "Summarize this meeting transcript:\n\n\(text)",
-            options: FoundationModelsHelper.temperatureOptions(0.4)
-        )
-
-        self.summaryText = summaryText
-        return try AttributedString(markdown: summaryText)
-    }
-
-    func suggestedTitle() async throws -> String? {
-        let transcript = transcriptText ?? String(text.characters)
-        return try await generateEnhancedTitle(from: transcript)
-    }
-
-    func summarize(using template: String) async throws -> AttributedString? {
-        let transcript = transcriptText ?? String(text.characters)
-        return try await generateRichSummary(from: transcript)
+        self.summary = try? AttributedString(markdown: markdown)
     }
 }
 

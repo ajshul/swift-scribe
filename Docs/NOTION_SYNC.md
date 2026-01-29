@@ -2,31 +2,63 @@
 
 ## Configuration
 
-### Setup Steps
+### User Setup (In-App)
 
-1. **Create a Notion Integration**:
+Users connect to Notion via OAuth - no manual token copying required:
+
+1. **Connect to Notion**:
+   - Go to Settings → Notion Integration
+   - Tap "Connect to Notion"
+   - Sign in to Notion in the browser
+   - Authorize Swift Scribe
+   - Select pages/databases to share with the app
+
+2. **Select a Database**:
+   - After connecting, tap "Select Database"
+   - Choose a database from the list of shared databases
+   - The database should have a "Name" title property (standard)
+
+3. **Optional Settings**:
+   - Enable "Auto-sync after recording" to sync automatically
+   - Use "Test Connection" to verify everything works
+
+### Developer Setup (OAuth App)
+
+To enable OAuth login, you need to create a Notion public integration:
+
+1. **Create Public Integration**:
    - Go to https://www.notion.so/my-integrations
    - Click "New integration"
    - Name it (e.g., "Swift Scribe")
-   - Select the workspace
-   - Copy the "Internal Integration Secret" (starts with `ntn_`)
+   - Select **"Public"** integration type
+   - Set redirect URI: `swiftscribe://notion-callback`
 
-2. **Create or Choose a Database**:
-   - Create a Notion database for meeting notes
-   - Required property: **Title** (every database has this)
-   - Optional property: **Date** (type: Date) - will be used if present
-   - Copy the database ID from the URL: `https://notion.so/{workspace}/{database_id}?v=...`
+2. **Configure OAuth Credentials**:
+   - Copy the **OAuth client ID** and **OAuth client secret**
+   - Update `NotionOAuthService.swift`:
+     ```swift
+     private let clientId = "YOUR_CLIENT_ID"
+     private let clientSecret = "YOUR_CLIENT_SECRET"
+     ```
 
-3. **Share Database with Integration**:
-   - Open the database in Notion
-   - Click "..." menu -> "Connections" -> Add your integration
-   - The integration must have access or API calls will return 404
+3. **URL Scheme**:
+   - The app's `Info.plist` registers the `swiftscribe://` URL scheme
+   - Notion redirects back to `swiftscribe://notion-callback` after authorization
 
-4. **Configure in App**:
-   - Settings tab -> Notion section
-   - Paste Integration Token (stored in Keychain)
-   - Paste Database ID (stored in UserDefaults)
-   - Tap "Test Connection" to verify
+### OAuth Flow
+
+```
+User taps "Connect to Notion"
+  -> ASWebAuthenticationSession opens Notion OAuth page
+  -> User logs in and authorizes app
+  -> User selects which pages/databases to share
+  -> Notion redirects to swiftscribe://notion-callback?code=...
+  -> App exchanges code for access token (POST /v1/oauth/token)
+  -> Token stored securely in Keychain
+  -> App fetches available databases (POST /v1/search)
+  -> User selects target database
+  -> Configuration complete
+```
 
 ## API Details
 

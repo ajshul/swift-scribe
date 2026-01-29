@@ -2,7 +2,7 @@ import SwiftData
 import SwiftUI
 
 @main
-struct SwiftTranscriptionSampleApp: App {
+struct SwiftScribeApp: App {
     @State private var settings = AppSettings()
 
     var body: some Scene {
@@ -11,11 +11,7 @@ struct SwiftTranscriptionSampleApp: App {
                 .environment(settings)
                 .preferredColorScheme(settings.colorScheme)
         }
-        .modelContainer(
-            for: Memo.self,
-            inMemory: true,
-            isAutosaveEnabled: true
-        )
+        .modelContainer(for: Memo.self)
 
         #if os(macOS)
             Settings {

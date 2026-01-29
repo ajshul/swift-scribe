@@ -81,6 +81,7 @@ struct SettingsTab: View {
 
 // MARK: - Notion Settings
 
+@MainActor
 @Observable
 final class NotionSettings {
     static let shared = NotionSettings()

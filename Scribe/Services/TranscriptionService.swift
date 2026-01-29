@@ -26,8 +26,33 @@ final class TranscriptionService {
 
     init() {}
 
+    /// Check and request speech recognition authorization
+    nonisolated func requestAuthorization() async -> Bool {
+        let status = SFSpeechRecognizer.authorizationStatus()
+
+        switch status {
+        case .authorized:
+            return true
+        case .notDetermined:
+            return await withCheckedContinuation { continuation in
+                SFSpeechRecognizer.requestAuthorization { newStatus in
+                    continuation.resume(returning: newStatus == .authorized)
+                }
+            }
+        case .denied, .restricted:
+            return false
+        @unknown default:
+            return false
+        }
+    }
+
     /// Start transcription, returning when setup is complete.
     func start() async throws {
+        // Check speech recognition authorization first
+        guard await requestAuthorization() else {
+            throw TranscriptionError.speechRecognitionNotAuthorized
+        }
+
         finalizedText = ""
         volatileText = ""
 

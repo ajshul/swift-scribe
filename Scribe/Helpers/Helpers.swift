@@ -2,15 +2,16 @@ import AVFoundation
 import Foundation
 import SwiftUI
 
-public enum TranscriptionError: Error {
+enum TranscriptionError: LocalizedError {
     case couldNotDownloadModel
     case failedToSetupRecognitionStream
     case invalidAudioDataType
     case localeNotSupported
     case noInternetForModelDownload
     case audioFilePathNotFound
+    case speechRecognitionNotAuthorized
 
-    var descriptionString: String {
+    var errorDescription: String? {
         switch self {
         case .couldNotDownloadModel:
             return "Could not download the model."
@@ -24,7 +25,13 @@ public enum TranscriptionError: Error {
             return "The model could not be downloaded because the user is not connected to internet."
         case .audioFilePathNotFound:
             return "Couldn't write audio to file."
+        case .speechRecognitionNotAuthorized:
+            return "Speech recognition access is required. Please enable it in Settings > Privacy & Security > Speech Recognition."
         }
+    }
+
+    var descriptionString: String {
+        return errorDescription ?? "Unknown error"
     }
 }
 

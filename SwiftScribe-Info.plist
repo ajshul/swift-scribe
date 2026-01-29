@@ -15,5 +15,13 @@
 			</array>
 		</dict>
 	</array>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Swift Scribe needs microphone access to record your meetings for transcription.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Swift Scribe uses on-device speech recognition to transcribe your meetings in real-time.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+	</array>
 </dict>
 </plist>

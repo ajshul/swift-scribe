@@ -14,11 +14,16 @@ struct RecordTab: View {
 
     @State private var currentMemo: Memo?
     @State private var navigateToReview = false
+    @State private var errorMessage: String?
+
+    @State private var recordingService = RecordingService()
+    @State private var transcriptionService = TranscriptionService()
+    @State private var recordingTask: Task<Void, Never>?
 
     private var defaultTitle: String {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMM d, h:mm a"
-        return "Meeting - \(formatter.string(from: Date()))"
+        return "Meeting – \(formatter.string(from: Date()))"
     }
 
     var body: some View {
@@ -40,15 +45,27 @@ struct RecordTab: View {
 
                 Spacer()
 
-                // Status + Timer
-                VStack(spacing: 12) {
-                    if sessionState == .recording {
+                // Live transcript preview during recording
+                if sessionState == .recording {
+                    VStack(spacing: 8) {
                         Text(formatDuration(recordingDuration))
                             .font(.system(size: 48, weight: .light, design: .monospaced))
                             .foregroundStyle(.primary)
                             .contentTransition(.numericText())
-                    }
 
+                        if !transcriptionService.fullText.isEmpty {
+                            ScrollView {
+                                Text(transcriptionService.fullText)
+                                    .font(.body)
+                                    .foregroundStyle(.secondary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.horizontal, 24)
+                            }
+                            .frame(maxHeight: 150)
+                        }
+                    }
+                } else {
+                    // Status label for non-recording states
                     Text(sessionState.displayLabel)
                         .font(.subheadline)
                         .fontWeight(.medium)
@@ -94,9 +111,19 @@ struct RecordTab: View {
                     meetingTitle = defaultTitle
                 }
             }
+            .onDisappear {
+                recordingTask?.cancel()
+            }
             .navigationDestination(isPresented: $navigateToReview) {
                 if let memo = currentMemo {
                     ReviewNotesView(memo: memo)
+                }
+            }
+            .alert("Error", isPresented: .constant(errorMessage != nil)) {
+                Button("OK") { errorMessage = nil }
+            } message: {
+                if let msg = errorMessage {
+                    Text(msg)
                 }
             }
         }
@@ -117,7 +144,7 @@ struct RecordTab: View {
 
     private func startRecording() {
         let title = meetingTitle.isEmpty ? defaultTitle : meetingTitle
-        let memo = Memo(title: title, text: AttributedString(""))
+        let memo = Memo(title: title)
         modelContext.insert(memo)
         currentMemo = memo
 
@@ -132,7 +159,30 @@ struct RecordTab: View {
             }
         }
 
-        // TODO: Wire RecordingService + TranscriptionService in milestone 4/5
+        recordingTask = Task {
+            do {
+                // Start transcription first
+                try await transcriptionService.start()
+
+                // Then start recording and process buffers
+                let bufferStream = try await recordingService.startRecording()
+
+                // Store audio URL
+                if let url = recordingService.audioFileURL {
+                    memo.url = url
+                }
+
+                // Forward buffers to transcription
+                for await buffer in bufferStream {
+                    try? transcriptionService.processBuffer(buffer)
+                }
+            } catch {
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    sessionState = .idle
+                }
+            }
+        }
     }
 
     private func stopRecording() {
@@ -140,23 +190,45 @@ struct RecordTab: View {
         recordingTimer = nil
         recordingStartTime = nil
 
-        if let memo = currentMemo {
-            memo.duration = recordingDuration
-            memo.isDone = true
+        // Stop recording
+        recordingService.stopRecording()
+
+        guard let memo = currentMemo else {
+            sessionState = .idle
+            return
         }
+
+        memo.duration = recordingDuration
+        memo.isDone = true
 
         sessionState = .transcribing
 
-        // TODO: Wire actual transcription + summarization pipeline
-        // For now, simulate the state transitions
         Task {
-            try? await Task.sleep(for: .seconds(0.5))
+            // Finalize transcription
+            await transcriptionService.stop()
+
+            // Store transcript
+            let transcript = transcriptionService.fullText
+            memo.transcriptText = transcript
+            memo.text = AttributedString(transcript)
+
             await MainActor.run {
                 sessionState = .summarizing
             }
-            try? await Task.sleep(for: .seconds(0.5))
+
+            // Generate AI summary
+            do {
+                try await memo.generateAIEnhancements()
+            } catch {
+                print("[RecordTab] AI enhancement failed: \(error)")
+                // Continue even if AI fails - transcript is still saved
+            }
+
             await MainActor.run {
                 sessionState = .ready
+                // Reset for next recording
+                meetingTitle = defaultTitle
+                transcriptionService.reset()
                 navigateToReview = true
             }
         }
